@@ -1,0 +1,49 @@
+{
+  "id": "spotify",
+  "version": "0.1.0",
+  "name": "Spotify",
+  "description": "OAuth-backed music app embedded inside the host chat.",
+  "entryUrl": "http://localhost:3204",
+  "origin": "http://localhost:3204",
+  "permissions": ["session:write", "auth:oauth"],
+  "scopes": ["playlist-read-private", "playlist-modify-private", "user-read-email"],
+  "tools": [
+    {
+      "name": "launch_spotify",
+      "description": "Show the user's Spotify playlists. Requires Spotify authorization.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "create_spotify_playlist",
+      "description": "Create a new Spotify playlist for the user.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name for the new playlist."
+          }
+        },
+        "required": ["name"]
+      }
+    },
+    {
+      "name": "search_spotify",
+      "description": "Search for songs on Spotify.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query, e.g. 'bohemian rhapsody', 'chill lo-fi'."
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}

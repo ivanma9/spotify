@@ -1,0 +1,1010 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spotify</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 20px; }
+      .spotify-container { max-width: 520px; margin: 0 auto; }
+
+      .connect-card {
+        text-align: center; padding: 48px 24px;
+        background: #fff; border-radius: 12px; border: 2px solid #e2e4e9;
+      }
+      .connect-logo { font-size: 3rem; margin-bottom: 16px; }
+      .connect-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; }
+      .connect-desc { font-size: 0.9rem; color: #6b7280; margin-bottom: 24px; line-height: 1.5; }
+      .connect-btn {
+        display: inline-block; padding: 12px 32px;
+        background: #1DB954; color: #fff; border: none; border-radius: 24px;
+        font-size: 1rem; font-weight: 700; cursor: pointer;
+        font-family: inherit; transition: background 0.15s;
+      }
+      .connect-btn:hover { background: #1aa34a; }
+      .connect-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+      .connect-error {
+        margin-top: 16px; padding: 10px 14px;
+        background: #fef2f2; border-radius: 8px; border: 1px solid #fca5a5;
+        font-size: 0.85rem; color: #dc2626;
+      }
+
+      .loading-card {
+        text-align: center; padding: 48px 24px;
+        background: #fff; border-radius: 12px; border: 2px solid #e2e4e9;
+      }
+      .spinner {
+        display: inline-block; width: 32px; height: 32px;
+        border: 3px solid #e2e4e9; border-top-color: #1DB954;
+        border-radius: 50%; animation: spin 0.8s linear infinite;
+        margin-bottom: 16px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .loading-text { font-size: 0.95rem; color: #6b7280; }
+
+      .toolbar {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 12px;
+      }
+      .toolbar-left { display: flex; align-items: center; gap: 8px; }
+      .toolbar-left h2 { font-size: 1rem; font-weight: 700; }
+      .toolbar-count { font-size: 0.85rem; color: #6b7280; }
+      .toolbar-right { display: flex; gap: 8px; }
+      .toolbar-btn {
+        padding: 6px 14px; border: 2px solid #e2e4e9; border-radius: 8px;
+        background: #fff; font-size: 0.8rem; cursor: pointer;
+        font-family: inherit; transition: all 0.15s; color: #1a1a2e;
+      }
+      .toolbar-btn:hover { border-color: #1DB954; color: #1DB954; background: #ecfdf5; }
+      .toolbar-btn.danger:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+      .back-btn {
+        padding: 6px 14px; border: 2px solid #e2e4e9; border-radius: 8px;
+        background: #fff; font-size: 0.8rem; cursor: pointer;
+        font-family: inherit; transition: all 0.15s; color: #6b7280;
+      }
+      .back-btn:hover { border-color: #4a4ae0; color: #4a4ae0; background: #f0f0ff; }
+
+      .playlist-list { display: flex; flex-direction: column; gap: 8px; }
+      .playlist-card {
+        display: flex; gap: 12px; align-items: center;
+        background: #fff; border-radius: 10px; border: 2px solid #e2e4e9;
+        padding: 12px; cursor: pointer; transition: border-color 0.15s;
+      }
+      .playlist-card:hover { border-color: #1DB954; }
+      .playlist-img {
+        width: 56px; height: 56px; border-radius: 6px;
+        background: #e2e4e9; flex-shrink: 0; object-fit: cover;
+      }
+      .playlist-img-placeholder {
+        width: 56px; height: 56px; border-radius: 6px;
+        background: #e2e4e9; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem; color: #9ca3af;
+      }
+      .playlist-info { flex: 1; min-width: 0; }
+      .playlist-name {
+        font-size: 0.95rem; font-weight: 600;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .playlist-meta { font-size: 0.8rem; color: #6b7280; margin-top: 2px; }
+      .playlist-badge {
+        font-size: 0.7rem; font-weight: 600; color: #1DB954;
+        background: #ecfdf5; padding: 2px 8px; border-radius: 10px;
+        flex-shrink: 0;
+      }
+      .playlist-arrow { color: #9ca3af; font-size: 1rem; flex-shrink: 0; }
+
+      .detail-header {
+        display: flex; gap: 16px; align-items: center;
+        background: #fff; border-radius: 12px; border: 2px solid #e2e4e9;
+        padding: 16px; margin-bottom: 12px;
+      }
+      .detail-img {
+        width: 80px; height: 80px; border-radius: 8px;
+        background: #e2e4e9; flex-shrink: 0; object-fit: cover;
+      }
+      .detail-img-placeholder {
+        width: 80px; height: 80px; border-radius: 8px;
+        background: #e2e4e9; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2rem; color: #9ca3af;
+      }
+      .detail-info h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+      .detail-info p { font-size: 0.85rem; color: #6b7280; }
+
+      .track-list {
+        background: #fff; border-radius: 12px; border: 2px solid #e2e4e9;
+        overflow: hidden;
+      }
+      .track-row {
+        display: flex; gap: 12px; align-items: center;
+        padding: 10px 16px; border-bottom: 1px solid #f0f1f3;
+        transition: background 0.1s;
+      }
+      .track-row:last-child { border-bottom: none; }
+      .track-row:hover { background: #f8f9fa; }
+      .track-num { width: 24px; text-align: right; font-size: 0.8rem; color: #9ca3af; flex-shrink: 0; }
+      .track-album-img {
+        width: 40px; height: 40px; border-radius: 4px;
+        background: #e2e4e9; flex-shrink: 0; object-fit: cover;
+      }
+      .track-info { flex: 1; min-width: 0; }
+      .track-name {
+        font-size: 0.9rem; font-weight: 600;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .track-artist {
+        font-size: 0.8rem; color: #6b7280; margin-top: 1px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .track-duration { font-size: 0.8rem; color: #9ca3af; flex-shrink: 0; }
+      .track-empty { padding: 32px; text-align: center; color: #9ca3af; font-size: 0.9rem; }
+
+      .search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+      .search-bar input {
+        flex: 1; padding: 10px 14px; border: 2px solid #e2e4e9; border-radius: 8px;
+        font-size: 0.9rem; font-family: inherit; outline: none; transition: border-color 0.15s;
+      }
+      .search-bar input:focus { border-color: #1DB954; }
+      .search-bar button {
+        padding: 10px 18px; background: #1DB954; color: #fff; border: none;
+        border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+        font-family: inherit; transition: background 0.15s;
+      }
+      .search-bar button:hover { background: #1aa34a; }
+      .search-empty { text-align: center; padding: 32px; color: #9ca3af; font-size: 0.9rem; }
+
+      .form-card {
+        background: #fff; border-radius: 12px; border: 2px solid #e2e4e9;
+        padding: 24px;
+      }
+      .form-card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+      .form-group { margin-bottom: 14px; }
+      .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+      .form-group input, .form-group textarea {
+        width: 100%; padding: 10px 12px; border: 2px solid #e2e4e9; border-radius: 8px;
+        font-size: 0.9rem; font-family: inherit; outline: none; transition: border-color 0.15s;
+        resize: vertical;
+      }
+      .form-group input:focus, .form-group textarea:focus { border-color: #1DB954; }
+      .form-group textarea { min-height: 60px; }
+      .form-check {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 0.85rem; cursor: pointer;
+      }
+      .form-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: #1DB954; }
+      .form-actions { display: flex; gap: 8px; margin-top: 18px; }
+      .form-submit {
+        padding: 10px 24px; background: #1DB954; color: #fff; border: none;
+        border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+        font-family: inherit; transition: background 0.15s;
+      }
+      .form-submit:hover { background: #1aa34a; }
+      .form-submit:disabled { background: #9ca3af; cursor: not-allowed; }
+      .form-cancel {
+        padding: 10px 24px; background: #fff; color: #6b7280; border: 2px solid #e2e4e9;
+        border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+        font-family: inherit; transition: all 0.15s;
+      }
+      .form-cancel:hover { border-color: #9ca3af; }
+      .form-success {
+        margin-top: 12px; padding: 10px 14px;
+        background: #ecfdf5; border-radius: 8px; border: 1px solid #86efac;
+        font-size: 0.85rem; color: #166534;
+      }
+
+      .error-card {
+        text-align: center; padding: 32px 24px;
+        background: #fef2f2; border-radius: 12px; border: 2px solid #ef4444;
+      }
+      .error-icon { font-size: 2rem; margin-bottom: 12px; }
+      .error-message { font-size: 0.9rem; color: #dc2626; margin-bottom: 16px; }
+      .retry-btn {
+        padding: 10px 24px; background: #ef4444; color: #fff; border: none;
+        border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+        font-family: inherit; transition: background 0.15s;
+      }
+      .retry-btn:hover { background: #dc2626; }
+
+      .complete-card {
+        text-align: center; padding: 32px 24px;
+        background: #f0fdf4; border-radius: 12px; border: 2px solid #22c55e;
+      }
+      .complete-icon { font-size: 2rem; margin-bottom: 12px; }
+      .complete-message { font-size: 0.9rem; color: #166534; }
+
+      .status-bar {
+        margin-top: 12px; padding: 8px 12px;
+        background: #fff; border-radius: 8px; border: 1px solid #e2e4e9;
+        font-size: 0.75rem; color: #6b7280;
+      }
+      .status-bar .event { color: #1DB954; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="spotify-container">
+      <div id="app"></div>
+      <div class="status-bar" id="status">Spotify: initializing...</div>
+    </div>
+
+    <script>
+      // -- Constants -------------------------------------------------------
+      var APP_ID = 'spotify';
+      var APP_VERSION = '0.1.0';
+      // Public client ID — safe to expose (PKCE has no client secret)
+      var SPOTIFY_CLIENT_ID = '9eef8a5f36a54e10aa99b418bf7aa1e7';
+      var SPOTIFY_API = 'https://api.spotify.com/v1';
+      var SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
+      var SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
+      var APP_URL = window.location.origin + window.location.pathname;
+      var SCOPES = 'playlist-read-private playlist-modify-private playlist-modify-public user-read-email';
+      var inIframe = window.parent !== window;
+
+      // -- State -----------------------------------------------------------
+      var hostOrigin = null;
+      var appSessionId = null;
+      var chatSessionId = null;
+      var messageNonce = null;
+      var protocolVersion = '1';
+      var authStatus = 'disconnected';
+      var playlists = [];
+      var selectedPlaylist = null;
+      var tracks = [];
+      var searchQuery = '';
+      var searchResults = [];
+      var currentView = 'loading';
+      var errorMessage = '';
+      var completeSummary = '';
+      var createSuccess = '';
+      var userId = null;
+
+      // -- In-memory token (works in sandboxed iframes) --------------------
+      var _accessToken = null;
+      var _refreshToken = null;
+      var _tokenExpiry = 0;
+
+      // -- PKCE helpers ----------------------------------------------------
+      function generateRandomString(length) {
+        var possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+        var array = crypto.getRandomValues(new Uint8Array(length));
+        return Array.from(array, function(b) { return possible[b % possible.length]; }).join('');
+      }
+
+      function sha256(plain) {
+        return crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+      }
+
+      function base64urlencode(buffer) {
+        return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)))
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+
+      function generateCodeChallenge(verifier) {
+        return sha256(verifier).then(function(hash) { return base64urlencode(hash); });
+      }
+
+      // -- Token management (localStorage with fallback to memory) ---------
+      function safeLSGet(key) {
+        try { return localStorage.getItem(key); } catch(e) { return null; }
+      }
+
+      function safeLSSet(key, val) {
+        try { localStorage.setItem(key, val); } catch(e) { /* sandboxed */ }
+      }
+
+      function safeLSRemove(key) {
+        try { localStorage.removeItem(key); } catch(e) { /* sandboxed */ }
+      }
+
+      function getAccessToken() {
+        return _accessToken || safeLSGet('spotify_access_token');
+      }
+
+      function getRefreshToken() {
+        return _refreshToken || safeLSGet('spotify_refresh_token');
+      }
+
+      function getTokenExpiry() {
+        return _tokenExpiry || parseInt(safeLSGet('spotify_token_expiry') || '0');
+      }
+
+      function hasValidToken() {
+        return getAccessToken() && Date.now() < getTokenExpiry();
+      }
+
+      function storeTokens(data) {
+        _accessToken = data.access_token;
+        if (data.refresh_token) _refreshToken = data.refresh_token;
+        _tokenExpiry = Date.now() + (data.expires_in - 60) * 1000; // 60s buffer for clock skew
+        safeLSSet('spotify_access_token', _accessToken);
+        if (data.refresh_token) safeLSSet('spotify_refresh_token', data.refresh_token);
+        safeLSSet('spotify_token_expiry', _tokenExpiry.toString());
+      }
+
+      function clearTokens() {
+        _accessToken = null;
+        _refreshToken = null;
+        _tokenExpiry = 0;
+        safeLSRemove('spotify_access_token');
+        safeLSRemove('spotify_refresh_token');
+        safeLSRemove('spotify_token_expiry');
+        safeLSRemove('spotify_code_verifier');
+      }
+
+      function refreshAccessToken() {
+        var rt = getRefreshToken();
+        if (!rt) return Promise.resolve(false);
+
+        return fetch(SPOTIFY_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: SPOTIFY_CLIENT_ID,
+            grant_type: 'refresh_token',
+            refresh_token: rt,
+          }),
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.access_token) { storeTokens(data); return true; }
+          return false;
+        })
+        .catch(function() { return false; });
+      }
+
+      // -- Spotify API helper ----------------------------------------------
+      function spotifyFetch(endpoint, options) {
+        options = options || {};
+        options.headers = options.headers || {};
+        options.headers['Authorization'] = 'Bearer ' + getAccessToken();
+
+        return fetch(SPOTIFY_API + endpoint, options).then(function(res) {
+          if (res.status === 401) {
+            return refreshAccessToken().then(function(ok) {
+              if (!ok) {
+                authStatus = 'disconnected';
+                clearTokens();
+                errorMessage = 'Session expired. Please reconnect.';
+                currentView = 'disconnected';
+                render();
+                return Promise.reject(new Error('Token expired'));
+              }
+              options.headers['Authorization'] = 'Bearer ' + getAccessToken();
+              return fetch(SPOTIFY_API + endpoint, options);
+            });
+          }
+          return res;
+        });
+      }
+
+      // -- Bridge helpers (envelope protocol for iframe) -------------------
+      function send(event) {
+        if (inIframe && hostOrigin && appSessionId && messageNonce) {
+          window.parent.postMessage({
+            protocolVersion: protocolVersion,
+            appSessionId: appSessionId,
+            nonce: messageNonce,
+            event: event
+          }, hostOrigin);
+        }
+        statusLog(event.type);
+      }
+
+      function statusLog(msg) {
+        var el = document.getElementById('status');
+        el.textContent = '';
+        el.appendChild(document.createTextNode('Spotify: '));
+        var span = document.createElement('span');
+        span.className = 'event';
+        span.textContent = msg;
+        el.appendChild(span);
+      }
+
+      function notifyResize() {
+        var height = document.documentElement.scrollHeight;
+        send({ type: 'app:resize', payload: { height: height } });
+      }
+
+      function saveState() {
+        send({
+          type: 'app:save-state',
+          payload: {
+            state: {
+              authStatus: authStatus,
+              currentView: currentView,
+              playlistCount: playlists.length,
+              playlistNames: playlists.map(function(p) { return p.name; }),
+              selectedPlaylistId: selectedPlaylist ? selectedPlaylist.id : null
+            }
+          }
+        });
+      }
+
+      function sendComplete() {
+        var names = playlists.slice(0, 3).map(function(p) { return "'" + p.name + "'"; }).join(', ');
+        var summary = 'Viewed ' + playlists.length + ' playlists';
+        if (names) summary += ' including ' + names;
+        summary += '.';
+        send({ type: 'app:complete', payload: { summary: summary, output: { playlistCount: playlists.length, playlistNames: playlists.map(function(p) { return p.name; }) } } });
+        completeSummary = summary;
+        currentView = 'complete';
+        render();
+      }
+
+      // -- Helpers ---------------------------------------------------------
+      function formatDuration(ms) {
+        var s = Math.floor(ms / 1000);
+        var m = Math.floor(s / 60);
+        s = s % 60;
+        return m + ':' + (s < 10 ? '0' : '') + s;
+      }
+
+      function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+      }
+
+      // -- Auth actions (PKCE, works standalone and in iframe) -------------
+      function startAuth() {
+        if (inIframe) {
+          // Open popup to our own URL in auth mode — popup runs outside sandbox
+          authStatus = 'connecting';
+          currentView = 'connecting';
+          render();
+          window.open(APP_URL + '?mode=auth', 'spotify-auth', 'width=500,height=700');
+          return;
+        }
+
+        // Standalone: redirect-based PKCE
+        var verifier = generateRandomString(128);
+        var state = generateRandomString(32);
+        safeLSSet('spotify_code_verifier', verifier);
+        safeLSSet('spotify_oauth_state', state);
+
+        generateCodeChallenge(verifier).then(function(challenge) {
+          window.location.href = SPOTIFY_AUTH_URL + '?' + new URLSearchParams({
+            client_id: SPOTIFY_CLIENT_ID,
+            response_type: 'code',
+            redirect_uri: APP_URL,
+            scope: SCOPES,
+            state: state,
+            code_challenge_method: 'S256',
+            code_challenge: challenge,
+          }).toString();
+        });
+      }
+
+      function handleCallback(code) {
+        var verifier = safeLSGet('spotify_code_verifier');
+        var savedState = safeLSGet('spotify_oauth_state');
+        var returnedState = new URLSearchParams(window.location.search).get('state');
+        if (!verifier || (savedState && returnedState !== savedState)) {
+          errorMessage = 'Auth session invalid or expired. Please try again.';
+          currentView = 'disconnected';
+          safeLSRemove('spotify_code_verifier');
+          safeLSRemove('spotify_oauth_state');
+          render();
+          return;
+        }
+
+        currentView = 'loading';
+        render();
+
+        fetch(SPOTIFY_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: SPOTIFY_CLIENT_ID,
+            grant_type: 'authorization_code',
+            code: code,
+            redirect_uri: APP_URL,
+            code_verifier: verifier,
+          }),
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.error) throw new Error(data.error_description || data.error);
+          storeTokens(data);
+          safeLSRemove('spotify_code_verifier');
+          safeLSRemove('spotify_oauth_state');
+
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          // If popup opened by iframe, send token back and close
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'spotify-auth-complete',
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token,
+              expiresIn: data.expires_in,
+            }, window.location.origin);
+            window.close();
+            return;
+          }
+
+          // Standalone: continue normally
+          authStatus = 'connected';
+          statusLog('connected');
+          fetchPlaylists();
+        })
+        .catch(function(err) {
+          errorMessage = 'Authentication failed: ' + err.message;
+          currentView = 'disconnected';
+          render();
+        });
+      }
+
+      function disconnect() {
+        clearTokens();
+        authStatus = 'disconnected';
+        playlists = [];
+        tracks = [];
+        searchResults = [];
+        selectedPlaylist = null;
+        userId = null;
+        currentView = 'disconnected';
+        errorMessage = '';
+        render();
+      }
+
+      // -- Data fetching (direct Spotify API) ------------------------------
+      function fetchPlaylists() {
+        currentView = 'loading';
+        render();
+
+        spotifyFetch('/me/playlists?limit=50')
+          .then(function(res) {
+            if (!res.ok) throw new Error('Spotify API error (' + res.status + ')');
+            return res.json();
+          })
+          .then(function(data) {
+            playlists = data.items || [];
+            currentView = 'playlists';
+            render();
+            saveState();
+            notifyResize();
+          })
+          .catch(function(err) {
+            if (err.message === 'Token expired') return;
+            errorMessage = err.message;
+            currentView = 'error';
+            render();
+            notifyResize();
+          });
+      }
+
+      function fetchPlaylistTracks(playlist) {
+        selectedPlaylist = playlist;
+        currentView = 'loading';
+        render();
+
+        spotifyFetch('/playlists/' + encodeURIComponent(playlist.id) + '/tracks?limit=50')
+          .then(function(res) {
+            if (!res.ok) throw new Error('Failed to load tracks (' + res.status + ')');
+            return res.json();
+          })
+          .then(function(data) {
+            tracks = data.items || [];
+            currentView = 'playlist-detail';
+            render();
+            saveState();
+            notifyResize();
+          })
+          .catch(function(err) {
+            if (err.message === 'Token expired') return;
+            errorMessage = err.message;
+            currentView = 'error';
+            render();
+            notifyResize();
+          });
+      }
+
+      function performSearch(query) {
+        searchQuery = query;
+        if (!query.trim()) return;
+        searchResults = [];
+        render();
+
+        spotifyFetch('/search?q=' + encodeURIComponent(query) + '&type=track&limit=10')
+          .then(function(res) {
+            if (!res.ok) throw new Error('Search failed (' + res.status + ')');
+            return res.json();
+          })
+          .then(function(data) {
+            searchResults = (data.tracks && data.tracks.items) ? data.tracks.items.filter(Boolean) : [];
+            currentView = 'search';
+            render();
+            notifyResize();
+          })
+          .catch(function(err) {
+            if (err.message === 'Token expired') return;
+            errorMessage = err.message;
+            currentView = 'error';
+            render();
+            notifyResize();
+          });
+      }
+
+      function createPlaylist(name, description, isPublic) {
+        var doCreate = function(uid) {
+          spotifyFetch('/users/' + encodeURIComponent(uid) + '/playlists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, description: description, public: isPublic })
+          })
+          .then(function(res) {
+            if (!res.ok) throw new Error('Failed to create playlist (' + res.status + ')');
+            return res.json();
+          })
+          .then(function(data) {
+            playlists.unshift(data);
+            createSuccess = "Playlist '" + name + "' created!";
+            render();
+            saveState();
+            notifyResize();
+          })
+          .catch(function(err) {
+            if (err.message === 'Token expired') return;
+            errorMessage = err.message;
+            currentView = 'error';
+            render();
+          });
+        };
+
+        if (userId) {
+          doCreate(userId);
+        } else {
+          spotifyFetch('/me').then(function(r) { return r.json(); }).then(function(d) {
+            userId = d.id;
+            doCreate(d.id);
+          }).catch(function(err) {
+            errorMessage = 'Could not get profile: ' + err.message;
+            currentView = 'error';
+            render();
+          });
+        }
+      }
+
+      // -- Rendering -------------------------------------------------------
+      function render() {
+        var app = document.getElementById('app');
+        var html = '';
+        switch (currentView) {
+          case 'loading': html = renderLoading('Loading...'); break;
+          case 'disconnected': html = renderDisconnected(); break;
+          case 'connecting': html = renderLoading('Waiting for Spotify authorization...'); break;
+          case 'playlists': html = renderPlaylists(); break;
+          case 'playlist-detail': html = renderPlaylistDetail(); break;
+          case 'search': html = renderSearch(); break;
+          case 'create-playlist': html = renderCreatePlaylist(); break;
+          case 'error': html = renderError(); break;
+          case 'complete': html = renderComplete(); break;
+        }
+        app.innerHTML = html;
+        attachEventListeners();
+        notifyResize();
+      }
+
+      function renderLoading(text) {
+        return '<div class="loading-card"><div class="spinner"></div><div class="loading-text">' + escapeHtml(text) + '</div></div>';
+      }
+
+      function renderDisconnected() {
+        var html = '<div class="connect-card">'
+          + '<div class="connect-logo">\uD83C\uDFB5</div>'
+          + '<div class="connect-title">Connect to Spotify</div>'
+          + '<div class="connect-desc">Authorize to view and manage your Spotify playlists.</div>'
+          + '<button class="connect-btn" id="connect-btn">Connect to Spotify</button>';
+        if (errorMessage) html += '<div class="connect-error">' + escapeHtml(errorMessage) + '</div>';
+        html += '</div>';
+        return html;
+      }
+
+      function renderPlaylists() {
+        var html = '<div class="toolbar"><div class="toolbar-left"><h2>Your Playlists</h2><span class="toolbar-count">' + playlists.length + '</span></div>'
+          + '<div class="toolbar-right"><button class="toolbar-btn" id="search-btn">Search</button><button class="toolbar-btn" id="create-btn">+ New</button><button class="toolbar-btn danger" id="disconnect-btn">Disconnect</button></div></div>'
+          + '<div class="playlist-list">';
+        for (var i = 0; i < playlists.length; i++) {
+          var p = playlists[i];
+          var imgUrl = (p.images && p.images.length > 0 && p.images[0].url) ? p.images[0].url : '';
+          html += '<div class="playlist-card" data-playlist-index="' + i + '">';
+          if (imgUrl) { html += '<img class="playlist-img" src="' + escapeHtml(imgUrl) + '" alt="' + escapeHtml(p.name) + '" />'; }
+          else { html += '<div class="playlist-img-placeholder">\uD83C\uDFB5</div>'; }
+          html += '<div class="playlist-info"><div class="playlist-name">' + escapeHtml(p.name) + '</div><div class="playlist-meta">' + escapeHtml(((p.tracks || {}).total || 0) + ' tracks') + ' &middot; ' + escapeHtml(p.owner ? p.owner.display_name : 'Unknown') + '</div></div>';
+          if (p.public) html += '<span class="playlist-badge">Public</span>';
+          html += '<span class="playlist-arrow">\u203A</span></div>';
+        }
+        html += '</div>';
+        return html;
+      }
+
+      function renderPlaylistDetail() {
+        if (!selectedPlaylist) return renderPlaylists();
+        var p = selectedPlaylist;
+        var imgUrl = (p.images && p.images.length > 0 && p.images[0].url) ? p.images[0].url : '';
+        var html = '<div class="toolbar"><button class="back-btn" id="back-btn">\u2190 Back</button></div>';
+        html += '<div class="detail-header">';
+        if (imgUrl) { html += '<img class="detail-img" src="' + escapeHtml(imgUrl) + '" alt="' + escapeHtml(p.name) + '" />'; }
+        else { html += '<div class="detail-img-placeholder">\uD83C\uDFB5</div>'; }
+        html += '<div class="detail-info"><h2>' + escapeHtml(p.name) + '</h2><p>' + escapeHtml((p.tracks ? p.tracks.total : 0) + ' tracks') + ' &middot; ' + escapeHtml(p.owner ? p.owner.display_name : 'Unknown') + '</p>'
+          + (p.public ? '<p style="color:#1DB954;font-weight:600;font-size:0.8rem;margin-top:4px">Public</p>' : '') + '</div></div>';
+        html += '<div class="track-list">';
+        if (tracks.length === 0) html += '<div class="track-empty">This playlist has no tracks yet.</div>';
+        for (var i = 0; i < tracks.length; i++) {
+          var item = tracks[i]; var t = item.track; if (!t) continue;
+          var albumImg = (t.album && t.album.images && t.album.images.length > 0 && t.album.images[0].url) ? t.album.images[0].url : '';
+          var artists = t.artists ? t.artists.map(function(a) { return a.name; }).join(', ') : 'Unknown';
+          html += '<div class="track-row"><span class="track-num">' + (i + 1) + '</span>';
+          if (albumImg) html += '<img class="track-album-img" src="' + escapeHtml(albumImg) + '" alt="" />';
+          html += '<div class="track-info"><div class="track-name">' + escapeHtml(t.name) + '</div><div class="track-artist">' + escapeHtml(artists) + (t.album ? ' &middot; ' + escapeHtml(t.album.name) : '') + '</div></div>'
+            + '<span class="track-duration">' + formatDuration(t.duration_ms) + '</span></div>';
+        }
+        html += '</div>';
+        return html;
+      }
+
+      function renderSearch() {
+        var html = '<div class="toolbar"><button class="back-btn" id="back-btn">\u2190 Back</button></div>';
+        html += '<div class="search-bar"><input type="text" id="search-input" placeholder="Search for songs..." value="' + escapeHtml(searchQuery) + '" /><button id="search-submit-btn">Search</button></div>';
+        if (searchQuery && searchResults.length === 0) html += '<div class="search-empty">No results found.</div>';
+        if (searchResults.length > 0) {
+          html += '<div class="track-list">';
+          for (var i = 0; i < searchResults.length; i++) {
+            var t = searchResults[i]; if (!t) continue;
+            var albumImg = (t.album && t.album.images && t.album.images.length > 0 && t.album.images[0].url) ? t.album.images[0].url : '';
+            var artists = t.artists ? t.artists.map(function(a) { return a.name; }).join(', ') : 'Unknown';
+            html += '<div class="track-row"><span class="track-num">' + (i + 1) + '</span>';
+            if (albumImg) html += '<img class="track-album-img" src="' + escapeHtml(albumImg) + '" alt="" />';
+            html += '<div class="track-info"><div class="track-name">' + escapeHtml(t.name) + '</div><div class="track-artist">' + escapeHtml(artists) + (t.album ? ' &middot; ' + escapeHtml(t.album.name) : '') + '</div></div>'
+              + '<span class="track-duration">' + formatDuration(t.duration_ms) + '</span></div>';
+          }
+          html += '</div>';
+        }
+        return html;
+      }
+
+      function renderCreatePlaylist() {
+        var html = '<div class="toolbar"><button class="back-btn" id="back-btn">\u2190 Back</button></div>';
+        html += '<div class="form-card"><h2>Create New Playlist</h2>'
+          + '<div class="form-group"><label for="pl-name">Name</label><input type="text" id="pl-name" placeholder="My awesome playlist" /></div>'
+          + '<div class="form-group"><label for="pl-desc">Description</label><textarea id="pl-desc" placeholder="What\'s this playlist about?"></textarea></div>'
+          + '<div class="form-group"><label class="form-check"><input type="checkbox" id="pl-public" /> Make public</label></div>'
+          + '<div class="form-actions"><button class="form-submit" id="create-submit-btn">Create Playlist</button><button class="form-cancel" id="create-cancel-btn">Cancel</button></div>';
+        if (createSuccess) html += '<div class="form-success">' + escapeHtml(createSuccess) + '</div>';
+        html += '</div>';
+        return html;
+      }
+
+      function renderError() {
+        return '<div class="error-card"><div class="error-icon">\u26A0\uFE0F</div><div class="error-message">' + escapeHtml(errorMessage) + '</div><button class="retry-btn" id="retry-btn">Try Again</button></div>';
+      }
+
+      function renderComplete() {
+        return '<div class="complete-card"><div class="complete-icon">\u2705</div><div class="complete-message">' + escapeHtml(completeSummary) + '</div></div>';
+      }
+
+      // -- Event listeners -------------------------------------------------
+      function attachEventListeners() {
+        var el;
+        el = document.getElementById('connect-btn');
+        if (el) el.addEventListener('click', function() { errorMessage = ''; startAuth(); });
+
+        el = document.getElementById('disconnect-btn');
+        if (el) el.addEventListener('click', disconnect);
+
+        el = document.getElementById('retry-btn');
+        if (el) el.addEventListener('click', function() {
+          errorMessage = '';
+          if (authStatus === 'connected') fetchPlaylists();
+          else { currentView = 'disconnected'; render(); }
+        });
+
+        el = document.getElementById('back-btn');
+        if (el) el.addEventListener('click', function() {
+          searchResults = []; searchQuery = ''; createSuccess = '';
+          currentView = 'playlists'; render();
+        });
+
+        var cards = document.querySelectorAll('.playlist-card[data-playlist-index]');
+        for (var i = 0; i < cards.length; i++) {
+          cards[i].addEventListener('click', (function(idx) {
+            return function() { fetchPlaylistTracks(playlists[idx]); };
+          })(parseInt(cards[i].getAttribute('data-playlist-index'))));
+        }
+
+        el = document.getElementById('search-btn');
+        if (el) el.addEventListener('click', function() {
+          searchResults = []; searchQuery = ''; currentView = 'search'; render();
+          var inp = document.getElementById('search-input'); if (inp) inp.focus();
+        });
+
+        el = document.getElementById('search-submit-btn');
+        if (el) el.addEventListener('click', function() {
+          var inp = document.getElementById('search-input');
+          if (inp && inp.value.trim()) performSearch(inp.value.trim());
+        });
+
+        el = document.getElementById('search-input');
+        if (el) el.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' && el.value.trim()) performSearch(el.value.trim());
+        });
+
+        el = document.getElementById('create-btn');
+        if (el) el.addEventListener('click', function() {
+          createSuccess = ''; currentView = 'create-playlist'; render();
+          var inp = document.getElementById('pl-name'); if (inp) inp.focus();
+        });
+
+        el = document.getElementById('create-submit-btn');
+        if (el) el.addEventListener('click', function() {
+          var n = document.getElementById('pl-name');
+          var d = document.getElementById('pl-desc');
+          var pb = document.getElementById('pl-public');
+          var name = n ? n.value.trim() : '';
+          if (!name) { if (n) n.focus(); return; }
+          createPlaylist(name, d ? d.value.trim() : '', pb ? pb.checked : false);
+        });
+
+        el = document.getElementById('create-cancel-btn');
+        if (el) el.addEventListener('click', function() {
+          createSuccess = ''; currentView = 'playlists'; render();
+        });
+      }
+
+      // -- Tool input handling (from bridge or URL params) -----------------
+      var pendingToolInput = null;
+
+      function handleToolInput(toolName, result) {
+        if (!result) return;
+        // Infer action from tool name or result shape
+        if (result.query || toolName === 'search_spotify') {
+          var q = result.query || '';
+          if (q && hasValidToken()) {
+            searchQuery = q; searchResults = []; currentView = 'search';
+            render(); performSearch(q);
+          } else if (q) {
+            pendingToolInput = result;
+          }
+        } else if (result.name || toolName === 'create_spotify_playlist') {
+          createSuccess = ''; currentView = 'create-playlist'; render();
+          if (result.name) {
+            var inp = document.getElementById('pl-name');
+            if (inp) inp.value = result.name;
+          }
+        }
+      }
+
+      function executePendingToolInput() {
+        if (pendingToolInput) {
+          var input = pendingToolInput;
+          pendingToolInput = null;
+          handleToolInput('init', input);
+        }
+      }
+
+      // -- Message listener ------------------------------------------------
+      window.addEventListener('message', function(e) {
+        var data = e.data;
+        if (!data) return;
+
+        // Handle auth completion from popup (no envelope) — validate origin
+        if (data.type === 'spotify-auth-complete') {
+          if (e.origin !== window.location.origin) return;
+          _accessToken = data.accessToken;
+          _refreshToken = data.refreshToken;
+          _tokenExpiry = Date.now() + data.expiresIn * 1000;
+          safeLSSet('spotify_access_token', _accessToken);
+          if (data.refreshToken) safeLSSet('spotify_refresh_token', data.refreshToken);
+          safeLSSet('spotify_token_expiry', _tokenExpiry.toString());
+          authStatus = 'connected';
+          statusLog('connected');
+          if (pendingToolInput) { executePendingToolInput(); }
+          else { fetchPlaylists(); }
+          return;
+        }
+
+        // Bridge envelope protocol
+        if (data.protocolVersion === protocolVersion && data.event) {
+          var msg = data.event;
+          if (!msg || !msg.type) return;
+          statusLog('\u2193 ' + msg.type);
+
+          switch (msg.type) {
+            case 'host:init':
+              hostOrigin = e.origin;
+              appSessionId = data.appSessionId;
+              chatSessionId = msg.payload.chatSessionId;
+              messageNonce = data.nonce;
+              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
+              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
+              else { currentView = 'disconnected'; render(); }
+              break;
+
+            case 'host:resume-session':
+              hostOrigin = e.origin;
+              appSessionId = data.appSessionId;
+              messageNonce = data.nonce;
+              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
+              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
+              else { currentView = 'disconnected'; render(); }
+              break;
+
+            case 'host:tool-result':
+              var toolName = msg.payload.toolName;
+              var result = msg.payload.result || {};
+              handleToolInput(toolName, result);
+              break;
+
+            case 'host:request-complete':
+              if (currentView === 'playlists' || currentView === 'playlist-detail') sendComplete();
+              break;
+          }
+          return;
+        }
+
+        // Legacy plain message protocol removed — use envelope protocol only
+      });
+
+      // -- Init ------------------------------------------------------------
+      (function init() {
+        var params = new URLSearchParams(window.location.search);
+
+        // Auth popup mode: generate PKCE and redirect to Spotify
+        if (params.get('mode') === 'auth') {
+          document.getElementById('app').innerHTML = renderLoading('Redirecting to Spotify...');
+          var verifier = generateRandomString(128);
+          var state = generateRandomString(32);
+          safeLSSet('spotify_code_verifier', verifier);
+          safeLSSet('spotify_oauth_state', state);
+          generateCodeChallenge(verifier).then(function(challenge) {
+            window.location.href = SPOTIFY_AUTH_URL + '?' + new URLSearchParams({
+              client_id: SPOTIFY_CLIENT_ID,
+              response_type: 'code',
+              redirect_uri: APP_URL,
+              scope: SCOPES,
+              state: state,
+              code_challenge_method: 'S256',
+              code_challenge: challenge,
+            }).toString();
+          });
+          return;
+        }
+
+        // Returning from Spotify OAuth
+        var code = params.get('code');
+        if (code) {
+          statusLog('exchanging auth code...');
+          handleCallback(code);
+          return;
+        }
+
+        // Check URL params for tool input (bridge passes args as query params)
+        var urlToolInput = {};
+        if (params.get('query')) urlToolInput.query = params.get('query');
+        if (params.get('name')) urlToolInput.name = params.get('name');
+        if (Object.keys(urlToolInput).length > 0) pendingToolInput = urlToolInput;
+
+        // Have a valid token — load playlists or execute tool
+        if (hasValidToken()) {
+          authStatus = 'connected';
+          statusLog('connected');
+          if (pendingToolInput) { executePendingToolInput(); }
+          else { fetchPlaylists(); }
+          return;
+        }
+
+        // Standalone, no token — show connect
+        if (!inIframe) {
+          authStatus = 'disconnected';
+          currentView = 'disconnected';
+          statusLog('ready');
+          render();
+        }
+        // If in iframe, wait for host:init message
+      })();
+    </script>
+  </body>
+</html>
