@@ -380,13 +380,19 @@
 
       // -- Bridge helpers (envelope protocol for iframe) -------------------
       function send(event) {
-        if (inIframe && hostOrigin && appSessionId && messageNonce) {
-          window.parent.postMessage({
-            protocolVersion: protocolVersion,
-            appSessionId: appSessionId,
-            nonce: messageNonce,
-            event: event
-          }, hostOrigin);
+        if (inIframe && hostOrigin) {
+          // Send bare { type, payload } — matches the host's bare protocol.
+          // Envelope wrapping kept as fallback when nonce is present (legacy hosts).
+          if (appSessionId && messageNonce) {
+            window.parent.postMessage({
+              protocolVersion: protocolVersion,
+              appSessionId: appSessionId,
+              nonce: messageNonce,
+              event: event
+            }, hostOrigin);
+          } else {
+            window.parent.postMessage(event, hostOrigin);
+          }
         }
         statusLog(event.type);
       }
@@ -906,7 +912,7 @@
           return;
         }
 
-        // Bridge envelope protocol
+        // Bridge envelope protocol (legacy hosts that send wrapped messages)
         if (data.protocolVersion === protocolVersion && data.event) {
           var msg = data.event;
           if (!msg || !msg.type) return;
@@ -945,7 +951,39 @@
           return;
         }
 
-        // Legacy plain message protocol removed — use envelope protocol only
+        // Bare protocol (current host sends plain { type, payload })
+        if (data.type && typeof data.type === 'string') {
+          var msg = data;
+          statusLog('\u2193 ' + msg.type);
+
+          switch (msg.type) {
+            case 'host:init':
+              hostOrigin = e.origin;
+              appSessionId = msg.payload.appSessionId;
+              chatSessionId = msg.payload.chatSessionId;
+              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
+              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
+              else { currentView = 'disconnected'; render(); }
+              break;
+
+            case 'host:resume-session':
+              hostOrigin = e.origin;
+              appSessionId = msg.payload.appSessionId;
+              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
+              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
+              else { currentView = 'disconnected'; render(); }
+              break;
+
+            case 'host:tool-result':
+              handleToolInput(msg.payload.toolName, msg.payload.result || {});
+              break;
+
+            case 'host:request-complete':
+              if (currentView === 'playlists' || currentView === 'playlist-detail') sendComplete();
+              break;
+          }
+          return;
+        }
       });
 
       // -- Init ------------------------------------------------------------
