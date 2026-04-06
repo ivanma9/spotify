@@ -249,13 +249,14 @@
       var playlists = [];
       var selectedPlaylist = null;
       var tracks = [];
+      var totalTrackCount = 0;
       var searchQuery = '';
       var searchResults = [];
+
       var currentView = 'loading';
       var errorMessage = '';
       var completeSummary = '';
       var createSuccess = '';
-      var userId = null;
       var pendingToolInput = null;
       var lastHandledToolSignature = null;
 
@@ -562,9 +563,9 @@
         authStatus = 'disconnected';
         playlists = [];
         tracks = [];
+        totalTrackCount = 0;
         searchResults = [];
         selectedPlaylist = null;
-        userId = null;
         currentView = 'disconnected';
         errorMessage = '';
         render();
@@ -604,13 +605,18 @@
         currentView = 'loading';
         render();
 
-        spotifyFetch('/playlists/' + encodeURIComponent(playlist.id) + '/tracks?limit=50')
+        spotifyFetch('/playlists/' + encodeURIComponent(playlist.id))
           .then(function(res) {
-            if (!res.ok) throw new Error('Failed to load tracks (' + res.status + ')');
+            if (!res.ok) return res.text().then(function(text) {
+              var msg = 'Unexpected error';
+              try { var body = JSON.parse(text); if (body && body.error && body.error.message) msg = body.error.message; } catch(e) {}
+              throw new Error('Failed to load tracks (' + res.status + '): ' + msg);
+            });
             return res.json();
           })
           .then(function(data) {
-            tracks = data.items || [];
+            tracks = (data.tracks && data.tracks.items) ? data.tracks.items : [];
+            totalTrackCount = (data.tracks && data.tracks.total) ? data.tracks.total : tracks.length;
             currentView = 'playlist-detail';
             render();
             saveState();
@@ -653,48 +659,34 @@
 
       function createPlaylist(name, description, isPublic, options) {
         options = options || {};
-        var doCreate = function(uid) {
-          spotifyFetch('/users/' + encodeURIComponent(uid) + '/playlists', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, description: description, public: isPublic })
-          })
-          .then(function(res) {
-            if (!res.ok) throw new Error('Failed to create playlist (' + res.status + ')');
-            return res.json();
-          })
-          .then(function(data) {
-            upsertPlaylist(data);
-            selectedPlaylist = data;
-            tracks = [];
-            createSuccess = "Playlist '" + name + "' created!";
-            currentView = options.openDetail === false ? 'playlists' : 'playlist-detail';
-            render();
-            fetchPlaylists({ silent: true, preserveView: true });
-            saveState();
-            notifyResize();
-          })
-          .catch(function(err) {
-            if (err.message === 'Token expired') return;
-            errorMessage = err.message;
-            currentView = 'error';
-            render();
-          });
-        };
-
-        if (userId) {
-          doCreate(userId);
-        } else {
-          spotifyFetch('/me').then(function(r) { return r.json(); }).then(function(d) {
-            userId = d.id;
-            doCreate(d.id);
-          }).catch(function(err) {
-            errorMessage = 'Could not get profile: ' + err.message;
-            currentView = 'error';
-            render();
-          });
-        }
+        spotifyFetch('/me/playlists', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, description: description, public: isPublic })
+        })
+        .then(function(res) {
+          if (!res.ok) throw new Error('Failed to create playlist (' + res.status + ')');
+          return res.json();
+        })
+        .then(function(data) {
+          upsertPlaylist(data);
+          selectedPlaylist = data;
+          tracks = [];
+          createSuccess = "Playlist '" + name + "' created!";
+          currentView = options.openDetail === false ? 'playlists' : 'playlist-detail';
+          render();
+          fetchPlaylists({ silent: true, preserveView: true });
+          saveState();
+          notifyResize();
+        })
+        .catch(function(err) {
+          if (err.message === 'Token expired') return;
+          errorMessage = err.message;
+          currentView = 'error';
+          render();
+        });
       }
+
 
       // -- Rendering -------------------------------------------------------
       function render() {
@@ -758,7 +750,9 @@
         if (imgUrl) { html += '<img class="detail-img" src="' + escapeHtml(imgUrl) + '" alt="' + escapeHtml(p.name) + '" />'; }
         else { html += '<div class="detail-img-placeholder">\uD83C\uDFB5</div>'; }
         html += '<div class="detail-info"><h2>' + escapeHtml(p.name) + '</h2><p>' + escapeHtml((p.tracks ? p.tracks.total : 0) + ' tracks') + ' &middot; ' + escapeHtml(p.owner ? p.owner.display_name : 'Unknown') + '</p>'
-          + (p.public ? '<p style="color:#1DB954;font-weight:600;font-size:0.8rem;margin-top:4px">Public</p>' : '') + '</div></div>';
+          + (p.public ? '<p style="color:#1DB954;font-weight:600;font-size:0.8rem;margin-top:4px">Public</p>' : '')
+          + '<button disabled title="Requires Spotify Extended API Access" style="margin-top:8px;padding:6px 14px;background:#e5e7eb;color:#9ca3af;border:none;border-radius:20px;font-size:0.85rem;font-weight:600;cursor:not-allowed;">+ Add Tracks (coming soon)</button>'
+          + '</div></div>';
         html += '<div class="track-list">';
         if (tracks.length === 0) html += '<div class="track-empty">This playlist has no tracks yet.</div>';
         for (var i = 0; i < tracks.length; i++) {
@@ -769,6 +763,9 @@
           if (albumImg) html += '<img class="track-album-img" src="' + escapeHtml(albumImg) + '" alt="" />';
           html += '<div class="track-info"><div class="track-name">' + escapeHtml(t.name) + '</div><div class="track-artist">' + escapeHtml(artists) + (t.album ? ' &middot; ' + escapeHtml(t.album.name) : '') + '</div></div>'
             + '<span class="track-duration">' + formatDuration(t.duration_ms) + '</span></div>';
+        }
+        if (totalTrackCount > tracks.length) {
+          html += '<div class="track-empty">Showing ' + tracks.length + ' of ' + totalTrackCount + ' tracks</div>';
         }
         html += '</div>';
         return html;
