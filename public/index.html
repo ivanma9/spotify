@@ -245,8 +245,6 @@
       var hostOrigin = null;
       var appSessionId = null;
       var chatSessionId = null;
-      var messageNonce = null;
-      var protocolVersion = '1';
       var authStatus = 'disconnected';
       var playlists = [];
       var selectedPlaylist = null;
@@ -258,6 +256,8 @@
       var completeSummary = '';
       var createSuccess = '';
       var userId = null;
+      var pendingToolInput = null;
+      var lastHandledToolSignature = null;
 
       // -- In-memory token (works in sandboxed iframes) --------------------
       var _accessToken = null;
@@ -381,18 +381,7 @@
       // -- Bridge helpers (envelope protocol for iframe) -------------------
       function send(event) {
         if (inIframe && hostOrigin) {
-          // Send bare { type, payload } — matches the host's bare protocol.
-          // Envelope wrapping kept as fallback when nonce is present (legacy hosts).
-          if (appSessionId && messageNonce) {
-            window.parent.postMessage({
-              protocolVersion: protocolVersion,
-              appSessionId: appSessionId,
-              nonce: messageNonce,
-              event: event
-            }, hostOrigin);
-          } else {
-            window.parent.postMessage(event, hostOrigin);
-          }
+          window.parent.postMessage(event, hostOrigin);
         }
         statusLog(event.type);
       }
@@ -450,6 +439,31 @@
         var div = document.createElement('div');
         div.appendChild(document.createTextNode(str));
         return div.innerHTML;
+      }
+
+      function normalizeToolInput(input) {
+        if (!input || typeof input !== 'object') return null;
+
+        var normalized = {};
+        if (input.query != null && String(input.query).trim()) normalized.query = String(input.query).trim();
+        if (input.name != null && String(input.name).trim()) normalized.name = String(input.name).trim();
+        if (input.description != null && String(input.description).trim()) normalized.description = String(input.description).trim();
+        if (typeof input.public === 'boolean') normalized.public = input.public;
+        if (typeof input.public === 'string') normalized.public = input.public === 'true';
+
+        return Object.keys(normalized).length > 0 ? normalized : null;
+      }
+
+      function getToolSignature(toolName, input) {
+        var normalized = normalizeToolInput(input);
+        if (!normalized) return null;
+        return toolName + ':' + JSON.stringify(normalized);
+      }
+
+      function upsertPlaylist(playlist) {
+        playlists = [playlist].concat(playlists.filter(function(existing) {
+          return existing && existing.id !== playlist.id;
+        }));
       }
 
       // -- Auth actions (PKCE, works standalone and in iframe) -------------
@@ -557,9 +571,12 @@
       }
 
       // -- Data fetching (direct Spotify API) ------------------------------
-      function fetchPlaylists() {
-        currentView = 'loading';
-        render();
+      function fetchPlaylists(options) {
+        options = options || {};
+        if (!options.silent) {
+          currentView = 'loading';
+          render();
+        }
 
         spotifyFetch('/me/playlists?limit=50')
           .then(function(res) {
@@ -568,7 +585,7 @@
           })
           .then(function(data) {
             playlists = data.items || [];
-            currentView = 'playlists';
+            if (!options.preserveView) currentView = 'playlists';
             render();
             saveState();
             notifyResize();
@@ -634,7 +651,8 @@
           });
       }
 
-      function createPlaylist(name, description, isPublic) {
+      function createPlaylist(name, description, isPublic, options) {
+        options = options || {};
         var doCreate = function(uid) {
           spotifyFetch('/users/' + encodeURIComponent(uid) + '/playlists', {
             method: 'POST',
@@ -646,9 +664,13 @@
             return res.json();
           })
           .then(function(data) {
-            playlists.unshift(data);
+            upsertPlaylist(data);
+            selectedPlaylist = data;
+            tracks = [];
             createSuccess = "Playlist '" + name + "' created!";
+            currentView = options.openDetail === false ? 'playlists' : 'playlist-detail';
             render();
+            fetchPlaylists({ silent: true, preserveView: true });
             saveState();
             notifyResize();
           })
@@ -861,25 +883,45 @@
       }
 
       // -- Tool input handling (from bridge or URL params) -----------------
-      var pendingToolInput = null;
-
       function handleToolInput(toolName, result) {
-        if (!result) return;
-        // Infer action from tool name or result shape
-        if (result.query || toolName === 'search_spotify') {
-          var q = result.query || '';
-          if (q && hasValidToken()) {
-            searchQuery = q; searchResults = []; currentView = 'search';
-            render(); performSearch(q);
-          } else if (q) {
-            pendingToolInput = result;
+        var normalized = normalizeToolInput(result);
+        if (!normalized) return;
+
+        var signature = getToolSignature(toolName, normalized);
+        if (signature && signature === lastHandledToolSignature) return;
+
+        if (!hasValidToken()) {
+          pendingToolInput = normalized;
+          currentView = 'disconnected';
+          render();
+          return;
+        }
+
+        lastHandledToolSignature = signature;
+        setTimeout(function() {
+          if (lastHandledToolSignature === signature) {
+            lastHandledToolSignature = null;
           }
-        } else if (result.name || toolName === 'create_spotify_playlist') {
-          createSuccess = ''; currentView = 'create-playlist'; render();
-          if (result.name) {
-            var inp = document.getElementById('pl-name');
-            if (inp) inp.value = result.name;
-          }
+        }, 1000);
+
+        if (normalized.query || toolName === 'search_spotify') {
+          searchQuery = normalized.query || '';
+          searchResults = [];
+          currentView = 'search';
+          render();
+          fetchPlaylists({ silent: true, preserveView: true });
+          if (searchQuery) performSearch(searchQuery);
+          return;
+        }
+
+        if (normalized.name || toolName === 'create_spotify_playlist') {
+          createSuccess = '';
+          createPlaylist(
+            normalized.name || 'New Playlist',
+            normalized.description || '',
+            Boolean(normalized.public),
+            { openDetail: true }
+          );
         }
       }
 
@@ -912,77 +954,45 @@
           return;
         }
 
-        // Bridge envelope protocol (legacy hosts that send wrapped messages)
-        if (data.protocolVersion === protocolVersion && data.event) {
-          var msg = data.event;
-          if (!msg || !msg.type) return;
-          statusLog('\u2193 ' + msg.type);
+        var msg = data;
+        if (!msg || !msg.type) return;
+        statusLog('\u2193 ' + msg.type);
 
-          switch (msg.type) {
-            case 'host:init':
-              hostOrigin = e.origin;
-              appSessionId = data.appSessionId;
-              chatSessionId = msg.payload.chatSessionId;
-              messageNonce = data.nonce;
-              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
-              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
-              else { currentView = 'disconnected'; render(); }
-              break;
+        switch (msg.type) {
+          case 'host:init':
+            hostOrigin = e.origin;
+            appSessionId = msg.payload.appSessionId;
+            chatSessionId = msg.payload.chatSessionId;
+            pendingToolInput = normalizeToolInput(msg.payload && msg.payload.input) || pendingToolInput;
+            send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
+            if (hasValidToken()) {
+              authStatus = 'connected';
+              if (pendingToolInput) executePendingToolInput();
+              else fetchPlaylists();
+            }
+            else { currentView = 'disconnected'; render(); }
+            break;
 
-            case 'host:resume-session':
-              hostOrigin = e.origin;
-              appSessionId = data.appSessionId;
-              messageNonce = data.nonce;
-              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
-              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
-              else { currentView = 'disconnected'; render(); }
-              break;
+          case 'host:resume-session':
+            hostOrigin = e.origin;
+            appSessionId = msg.payload.appSessionId;
+            pendingToolInput = normalizeToolInput(msg.payload && msg.payload.input) || pendingToolInput;
+            send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
+            if (hasValidToken()) {
+              authStatus = 'connected';
+              if (pendingToolInput) executePendingToolInput();
+              else fetchPlaylists();
+            }
+            else { currentView = 'disconnected'; render(); }
+            break;
 
-            case 'host:tool-result':
-              var toolName = msg.payload.toolName;
-              var result = msg.payload.result || {};
-              handleToolInput(toolName, result);
-              break;
+          case 'host:tool-result':
+            handleToolInput(msg.payload.toolName, msg.payload.result || {});
+            break;
 
-            case 'host:request-complete':
-              if (currentView === 'playlists' || currentView === 'playlist-detail') sendComplete();
-              break;
-          }
-          return;
-        }
-
-        // Bare protocol (current host sends plain { type, payload })
-        if (data.type && typeof data.type === 'string') {
-          var msg = data;
-          statusLog('\u2193 ' + msg.type);
-
-          switch (msg.type) {
-            case 'host:init':
-              hostOrigin = e.origin;
-              appSessionId = msg.payload.appSessionId;
-              chatSessionId = msg.payload.chatSessionId;
-              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
-              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
-              else { currentView = 'disconnected'; render(); }
-              break;
-
-            case 'host:resume-session':
-              hostOrigin = e.origin;
-              appSessionId = msg.payload.appSessionId;
-              send({ type: 'app:ready', payload: { appId: APP_ID, version: APP_VERSION } });
-              if (hasValidToken()) { authStatus = 'connected'; fetchPlaylists(); }
-              else { currentView = 'disconnected'; render(); }
-              break;
-
-            case 'host:tool-result':
-              handleToolInput(msg.payload.toolName, msg.payload.result || {});
-              break;
-
-            case 'host:request-complete':
-              if (currentView === 'playlists' || currentView === 'playlist-detail') sendComplete();
-              break;
-          }
-          return;
+          case 'host:request-complete':
+            if (currentView === 'playlists' || currentView === 'playlist-detail') sendComplete();
+            break;
         }
       });
 
@@ -1023,7 +1033,9 @@
         var urlToolInput = {};
         if (params.get('query')) urlToolInput.query = params.get('query');
         if (params.get('name')) urlToolInput.name = params.get('name');
-        if (Object.keys(urlToolInput).length > 0) pendingToolInput = urlToolInput;
+        if (params.get('description')) urlToolInput.description = params.get('description');
+        if (params.get('public')) urlToolInput.public = params.get('public') === 'true';
+        if (Object.keys(urlToolInput).length > 0) pendingToolInput = normalizeToolInput(urlToolInput);
 
         // Have a valid token — load playlists or execute tool
         if (hasValidToken()) {
