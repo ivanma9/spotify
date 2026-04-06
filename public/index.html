@@ -500,7 +500,7 @@
         var verifier = safeLSGet('spotify_code_verifier');
         var savedState = safeLSGet('spotify_oauth_state');
         var returnedState = new URLSearchParams(window.location.search).get('state');
-        if (!verifier || (savedState && returnedState !== savedState)) {
+        if (!verifier || returnedState !== savedState) {
           errorMessage = 'Auth session invalid or expired. Please try again.';
           currentView = 'disconnected';
           safeLSRemove('spotify_code_verifier');
@@ -941,12 +941,7 @@
         // Handle auth completion from popup (no envelope) — validate origin
         if (data.type === 'spotify-auth-complete') {
           if (e.origin !== window.location.origin) return;
-          _accessToken = data.accessToken;
-          _refreshToken = data.refreshToken;
-          _tokenExpiry = Date.now() + data.expiresIn * 1000;
-          safeLSSet('spotify_access_token', _accessToken);
-          if (data.refreshToken) safeLSSet('spotify_refresh_token', data.refreshToken);
-          safeLSSet('spotify_token_expiry', _tokenExpiry.toString());
+          storeTokens({ access_token: data.accessToken, refresh_token: data.refreshToken, expires_in: data.expiresIn });
           authStatus = 'connected';
           statusLog('connected');
           if (pendingToolInput) { executePendingToolInput(); }
@@ -960,6 +955,8 @@
 
         switch (msg.type) {
           case 'host:init':
+            // Lock hostOrigin on first contact; reject origin changes
+            if (hostOrigin && e.origin !== hostOrigin) break;
             hostOrigin = e.origin;
             appSessionId = msg.payload.appSessionId;
             chatSessionId = msg.payload.chatSessionId;
@@ -974,6 +971,8 @@
             break;
 
           case 'host:resume-session':
+            // Only accept from the established host origin
+            if (hostOrigin && e.origin !== hostOrigin) break;
             hostOrigin = e.origin;
             appSessionId = msg.payload.appSessionId;
             pendingToolInput = normalizeToolInput(msg.payload && msg.payload.input) || pendingToolInput;
@@ -987,10 +986,12 @@
             break;
 
           case 'host:tool-result':
+            if (!hostOrigin || e.origin !== hostOrigin) break;
             handleToolInput(msg.payload.toolName, msg.payload.result || {});
             break;
 
           case 'host:request-complete':
+            if (!hostOrigin || e.origin !== hostOrigin) break;
             if (currentView === 'playlists' || currentView === 'playlist-detail') sendComplete();
             break;
         }
